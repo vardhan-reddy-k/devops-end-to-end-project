@@ -18,13 +18,15 @@ pipeline {
         }
 
         stage('Build Docker Image') {
-            steps {
-                dir('app') {
-                    sh '''
-                    docker build -t $ECR_REPO:$IMAGE_TAG .
-                    '''
-                }
-            }
+	    steps {
+	        sh '''
+	        docker build -t flask-app:${BUILD_NUMBER} .
+	        docker tag flask-app:${BUILD_NUMBER} \
+	          876178095025.dkr.ecr.ap-south-1.amazonaws.com/flask-app:${BUILD_NUMBER}
+	        docker tag flask-app:${BUILD_NUMBER} \
+	          876178095025.dkr.ecr.ap-south-1.amazonaws.com/flask-app:latest
+	        '''
+	    }
         }
 
         stage('Login to ECR') {
@@ -42,10 +44,15 @@ pipeline {
         }
 	
 	stage('Push Image to ECR') {
-            steps {
-                sh '''
-                docker push $ECR_REPO:$IMAGE_TAG
-                '''
+	    steps {
+	        sh '''
+	        aws ecr get-login-password --region ap-south-1 \
+	        | docker login --username AWS --password-stdin \
+	          876178095025.dkr.ecr.ap-south-1.amazonaws.com
+
+	        docker push 876178095025.dkr.ecr.ap-south-1.amazonaws.com/flask-app:${BUILD_NUMBER}
+	        docker push 876178095025.dkr.ecr.ap-south-1.amazonaws.com/flask-app:latest
+	        '''
             }
         }
 
