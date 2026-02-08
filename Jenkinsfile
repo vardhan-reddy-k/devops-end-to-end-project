@@ -48,51 +48,54 @@ pipeline {
                 '''
             }
         }
-    	stage('Blue-Green Deploy') {
+	
+	stage('Deploy Blue-Green') {
 	    steps {
 	        sh '''
 	        set -e
 
 	        IMAGE=$ECR_REPO:$IMAGE_TAG
 
-	        echo "🔍 Detecting live environment..."
-
+	        # Detect active container
 	        if docker ps --format '{{.Names}}' | grep -q flask-blue; then
 	            LIVE="blue"
 	            NEW="green"
+	            LIVE_PORT=5001
 	            NEW_PORT=5002
 	        else
 	            LIVE="green"
 	            NEW="blue"
+	            LIVE_PORT=5002
 	            NEW_PORT=5001
 	        fi
 
-	        echo "🟢 Live: flask-$LIVE"
-	        echo "🔵 New: flask-$NEW on port $NEW_PORT"
+	        echo "Live: flask-$LIVE on port $LIVE_PORT"
+	        echo "Deploying: flask-$NEW on port $NEW_PORT"
 
-	        echo "🧹 Cleaning old NEW container if exists"
+	        # Cleanup NEW container if exists
 	        docker stop flask-$NEW || true
 	        docker rm flask-$NEW || true
 
-	        echo "🚀 Starting new container"
+	        # Run new container
 	        docker run -d \
 	          --name flask-$NEW \
 	          -p $NEW_PORT:5000 \
 	          --restart always \
 	          $IMAGE
 
-	        echo "⏳ Waiting for application to be healthy..."
+	        echo "Waiting for app to be healthy..."
 	        sleep 10
 
-	        echo "🔁 Switching traffic via nginx"
-	        sudo sed -i "s/flask-$LIVE/flask-$NEW/" /etc/nginx/conf.d/flask.conf
-	        sudo nginx -s reload
+	        # Update nginx to point to NEW port
+	        sudo sed -i "s/$LIVE_PORT/$NEW_PORT/" /etc/nginx/conf.d/flask.conf
+	        sudo nginx -t
+	        sudo systemctl reload nginx
 
-	        echo "🛑 Stopping old container flask-$LIVE"
+	        # Stop old container
 	        docker stop flask-$LIVE || true
 	        docker rm flask-$LIVE || true
 
-	        echo "✅ Blue-Green Deployment completed successfully"
+	        echo "Blue-Green Deployment Successful"
 	        '''
 	    }
 	}
