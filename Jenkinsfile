@@ -48,31 +48,15 @@ pipeline {
                 '''
             }
         }
-    	
-	stage('Deploy Application') {
-	    steps {
-	        sh '''
-	        docker stop flask-app || true
-	        docker rm flask-app || true
-
-	        docker pull $ECR_REPO:$IMAGE_TAG
-
-	        docker run -d \
-	          --name flask-app \
-	          -p 5000:5000 \
-	          --restart always \
-	          $ECR_REPO:$IMAGE_TAG
-	        '''
-	    }
-	}
-	stage('Blue-Green Deploy') {
+    	stage('Blue-Green Deploy') {
 	    steps {
 	        sh '''
 	        set -e
 
 	        IMAGE=$ECR_REPO:$IMAGE_TAG
 
-	        # Detect live container
+	        echo "🔍 Detecting live environment..."
+
 	        if docker ps --format '{{.Names}}' | grep -q flask-blue; then
 	            LIVE="blue"
 	            NEW="green"
@@ -83,33 +67,36 @@ pipeline {
 	            NEW_PORT=5001
 	        fi
 
-	        echo "Live container: $LIVE"
-	        echo "Deploying new container: $NEW"
+	        echo "🟢 Live: flask-$LIVE"
+	        echo "🔵 New: flask-$NEW on port $NEW_PORT"
 
-	        # Clean old NEW container if exists (important fix)
+	        echo "🧹 Cleaning old NEW container if exists"
 	        docker stop flask-$NEW || true
 	        docker rm flask-$NEW || true
 
-	        # Run new container
-	        docker run -d --name flask-$NEW -p $NEW_PORT:5000 $IMAGE
+	        echo "🚀 Starting new container"
+	        docker run -d \
+	          --name flask-$NEW \
+	          -p $NEW_PORT:5000 \
+	          --restart always \
+	          $IMAGE
 
-	        echo "Waiting for new container to be ready..."
+	        echo "⏳ Waiting for application to be healthy..."
 	        sleep 10
 
-	        # Switch traffic
+	        echo "🔁 Switching traffic via nginx"
 	        sudo sed -i "s/flask-$LIVE/flask-$NEW/" /etc/nginx/conf.d/flask.conf
 	        sudo nginx -s reload
 
-	        # Stop old container
+	        echo "🛑 Stopping old container flask-$LIVE"
 	        docker stop flask-$LIVE || true
 	        docker rm flask-$LIVE || true
 
-	        echo "Blue-Green deployment successful"
+	        echo "✅ Blue-Green Deployment completed successfully"
 	        '''
-     	    }   
-      	}	
-    }	
-
+	    }
+	}
+    }
     post {
         success {
             echo "Pipeline completed successfully 🚀"
@@ -118,4 +105,4 @@ pipeline {
             echo "Pipeline failed ❌"
         }
     }
-}
+}	
