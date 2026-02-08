@@ -45,14 +45,19 @@ pipeline {
 	
 	stage('Push Image to ECR') {
 	    steps {
-	        sh '''
-	        aws ecr get-login-password --region ap-south-1 \
-	        | docker login --username AWS --password-stdin \
-	          876178095025.dkr.ecr.ap-south-1.amazonaws.com
+	        withCredentials([[
+	            $class: 'AmazonWebServicesCredentialsBinding',
+	            credentialsId: 'aws-ecr-creds'
+	        ]]) {
+	            sh '''
+	            aws ecr get-login-password --region ap-south-1 \
+	            | docker login --username AWS --password-stdin \
+	              876178095025.dkr.ecr.ap-south-1.amazonaws.com
 
-	        docker push 876178095025.dkr.ecr.ap-south-1.amazonaws.com/flask-app:${BUILD_NUMBER}
-	        docker push 876178095025.dkr.ecr.ap-south-1.amazonaws.com/flask-app:latest
-	        '''
+	            docker push 876178095025.dkr.ecr.ap-south-1.amazonaws.com/flask-app:${BUILD_NUMBER}
+	            docker push 876178095025.dkr.ecr.ap-south-1.amazonaws.com/flask-app:latest
+	            '''
+	        }
             }
         }
 
